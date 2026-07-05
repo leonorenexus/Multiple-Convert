@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>MULTIPLE CONVERT :: Format & Resize Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #05040d;
+    --violet: #7c3aed;
+    --magenta: #ff2fb2;
+    --cyan: #22d3ee;
+    --amber: #f5a623;
+    --text: #e8e6f5;
+    --muted: #8b87a8;
+    --line: rgba(139,135,168,0.18);
+    --glass: rgba(18,16,36,0.55);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg); color:var(--text); font-family:'JetBrains Mono', monospace;
+    overflow-x:hidden; min-height:100vh;
+  }
+  #nebula-canvas{ position:fixed; inset:0; width:100%; height:100%; z-index:0; }
+  @media (prefers-reduced-motion: reduce){
+    #nebula-canvas{ display:none; }
+    body{ background: radial-gradient(ellipse at 30% 20%, #1a0f3a 0%, #05040d 60%); }
+  }
+  .app{ position:relative; z-index:1; min-height:100vh; display:flex; flex-direction:column; }
+
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 20px; border-bottom:1px solid var(--line); backdrop-filter: blur(6px);
+  }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand .dot{
+    width:10px; height:10px; border-radius:50%;
+    background:var(--amber); box-shadow:0 0 10px var(--amber), 0 0 20px var(--amber);
+  }
+  .brand span{ font-family:'Orbitron', sans-serif; font-weight:700; letter-spacing:3px; font-size:15px; }
+  .brand small{ display:block; font-size:9px; letter-spacing:2px; color:var(--muted); margin-top:2px;}
+  #logoutBtn{
+    background:none; border:1px solid var(--line); color:var(--muted);
+    padding:6px 12px; border-radius:6px; font-family:inherit; font-size:11px; cursor:pointer; transition:.2s;
+  }
+  #logoutBtn:hover{ border-color:var(--magenta); color:var(--magenta); }
+
+  /* ---------- Gate screen ---------- */
+  #gateScreen{ flex:1; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .gate-card{
+    width:100%; max-width:360px; background:var(--glass); border:1px solid var(--line);
+    border-radius:16px; padding:32px 28px; backdrop-filter: blur(14px);
+    box-shadow: 0 0 0 1px rgba(245,166,35,0.08), 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .gate-card h1{ font-family:'Orbitron', sans-serif; font-size:19px; letter-spacing:3px; margin-bottom:6px; }
+  .gate-card .greet{
+    font-size:12px; color:var(--amber); margin-bottom:14px; line-height:1.6;
+    border-bottom:1px solid var(--line); padding-bottom:14px;
+  }
+  .gate-card p.sub{ color:var(--muted); font-size:11px; margin-bottom:24px; }
+  .field{ margin-bottom:16px; }
+  .field label{ display:block; font-size:10px; color:var(--muted); letter-spacing:1.5px; margin-bottom:6px; text-transform:uppercase;}
+  .field input{
+    width:100%; background:rgba(0,0,0,0.35); border:1px solid var(--line);
+    color:var(--text); padding:11px 12px; border-radius:8px; font-family:inherit; font-size:13px; outline:none; transition:.2s;
+  }
+  .field input:focus{ border-color:var(--amber); box-shadow:0 0 0 3px rgba(245,166,35,0.12); }
+  .btn-primary{
+    width:100%; padding:12px; border-radius:8px; border:none; cursor:pointer;
+    background:linear-gradient(90deg, var(--amber), var(--magenta));
+    color:#05040d; font-family:'JetBrains Mono'; font-weight:700; font-size:13px; letter-spacing:1px; margin-top:6px;
+  }
+  .btn-primary:hover{ filter:brightness(1.1); }
+  #gateNote{ font-size:10.5px; color:var(--muted); text-align:center; margin-top:16px; line-height:1.6; }
+
+  /* ---------- Main app ---------- */
+  #mainScreen{ display:none; flex:1; padding:20px; max-width:760px; margin:0 auto; width:100%; }
+
+  .dropzone{
+    border:2px dashed var(--line); border-radius:16px; padding:44px 20px; text-align:center;
+    background:var(--glass); backdrop-filter:blur(10px); cursor:pointer; transition:.2s;
+  }
+  .dropzone.dragover{ border-color:var(--amber); box-shadow:0 0 20px rgba(245,166,35,0.15); }
+  .dropzone h3{ font-family:'Orbitron'; font-size:14px; letter-spacing:2px; margin-bottom:8px; }
+  .dropzone p{ font-size:12px; color:var(--muted); }
+  .dropzone input{ display:none; }
+
+  #workArea{ display:none; margin-top:20px; }
+  .panel{
+    background:var(--glass); border:1px solid var(--line); border-radius:14px; padding:20px;
+    backdrop-filter: blur(10px); margin-bottom:16px;
+  }
+  .panel h2{ font-family:'Orbitron'; font-size:12px; letter-spacing:2px; color:var(--cyan); margin-bottom:14px; }
+
+  .preview-row{ display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+  .preview-box{
+    width:110px; height:110px; border-radius:10px; border:1px solid var(--line);
+    background:rgba(0,0,0,0.3) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="10" height="10" fill="%23151428"/><rect x="10" y="10" width="10" height="10" fill="%23151428"/></svg>');
+    background-size:16px 16px; display:flex; align-items:center; justify-content:center; overflow:hidden; flex-shrink:0;
+  }
+  .preview-box img{ max-width:100%; max-height:100%; object-fit:contain; }
+  .file-meta{ font-size:11.5px; color:var(--muted); line-height:1.8; }
+  .file-meta b{ color:var(--text); }
+
+  .form-row{ display:flex; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
+  .format-grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(130px,1fr));
+    gap:10px; margin-bottom:16px;
+  }
+  .format-card{
+    background:rgba(0,0,0,0.3); border:1px solid var(--line); border-radius:10px;
+    padding:14px 10px; text-align:center; cursor:pointer; transition:.2s;
+  }
+  .format-card:hover{ border-color:rgba(245,166,35,0.5); }
+  .format-card.active{
+    border-color:var(--amber); background:rgba(245,166,35,0.08);
+    box-shadow:0 0 14px rgba(245,166,35,0.15);
+  }
+  .format-card .fc-from{ font-size:9.5px; color:var(--muted); letter-spacing:1px; }
+  .format-card .fc-arrow{ font-size:11px; color:var(--muted); margin:4px 0; }
+  .format-card .fc-to{ font-size:14px; font-weight:700; color:var(--text); letter-spacing:1px; }
+  .format-card.active .fc-to{ color:var(--amber); }
+  .form-group{ flex:1; min-width:130px; }
+  .form-group label{ display:block; font-size:10px; color:var(--muted); letter-spacing:1px; margin-bottom:6px; text-transform:uppercase;}
+  .form-group select, .form-group input[type="number"]{
+    width:100%; background:rgba(0,0,0,0.35); border:1px solid var(--line); color:var(--text);
+    padding:10px 12px; border-radius:8px; font-family:inherit; font-size:13px; outline:none;
+  }
+  .form-group select:focus, .form-group input:focus{ border-color:var(--amber); }
+
+  .lock-row{ display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--muted); margin-bottom:14px; }
+  .lock-row input{ accent-color: var(--amber); width:15px; height:15px; }
+
+  .quality-row{ margin-bottom:6px; }
+  .quality-row label{ display:flex; justify-content:space-between; font-size:10px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:8px; }
+  .quality-row input[type="range"]{ width:100%; accent-color:var(--amber); }
+
+  .btn-convert{
+    width:100%; padding:14px; border-radius:10px; border:none; cursor:pointer; margin-top:6px;
+    background:linear-gradient(90deg, var(--amber), var(--cyan));
+    color:#05040d; font-family:'JetBrains Mono'; font-weight:700; font-size:13px; letter-spacing:1.5px;
+  }
+  .btn-convert:disabled{ opacity:0.5; cursor:not-allowed; }
+
+  #progressWrap{ display:none; margin-top:14px; }
+  #progressTrack{ height:6px; border-radius:3px; background:rgba(255,255,255,0.06); overflow:hidden; }
+  #progressFill{ height:100%; width:0%; background:linear-gradient(90deg, var(--amber), var(--cyan)); transition:width .3s ease; }
+  #progressLabel{ font-size:10.5px; color:var(--muted); margin-top:6px; text-align:center; letter-spacing:1px; }
+
+  #resultPanel{ display:none; text-align:center; }
+  #resultPanel img{ max-width:100%; max-height:220px; border-radius:10px; border:1px solid var(--line); margin-bottom:14px; }
+  .result-stats{ font-size:11.5px; color:var(--muted); margin-bottom:16px; line-height:1.8; }
+  .result-stats b{ color:var(--cyan); }
+  .result-actions{ display:flex; gap:10px; }
+  .result-actions button{ flex:1; padding:12px; border-radius:8px; font-family:inherit; font-size:12px; cursor:pointer; }
+  .btn-download{ background:linear-gradient(90deg, var(--amber), var(--magenta)); border:none; color:#05040d; font-weight:700; }
+  .btn-reset{ background:none; border:1px solid var(--line); color:var(--muted); }
+
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+</style>
+</head>
+<body>
+
+<canvas id="nebula-canvas"></canvas>
+
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <span>MULTIPLE CONVERT</span>
+        <small>FORMAT // RESIZE ENGINE</small>
+      </div>
+    </div>
+    <button id="logoutBtn" style="display:none;">EXIT</button>
+  </header>
+
+  <!-- GATE SCREEN (cosmetic, client-side only — no real accounts) -->
+  <div id="gateScreen">
+    <div class="gate-card">
+      <p class="greet">Hy There 🫵 Selamat datang di project ke sekian, Pai Leonore</p>
+      <h1>ACCESS TERMINAL</h1>
+      <p class="sub">// masuk buat mulai convert</p>
+      <div class="field">
+        <label>Callsign</label>
+        <input type="text" id="gateName" placeholder="nama/panggilan bebas">
+      </div>
+      <div class="field">
+        <label>Passphrase</label>
+        <input type="password" id="gatePass" placeholder="apa aja, gak divalidasi ke server">
+      </div>
+      <button class="btn-primary" id="gateEnter">MASUK</button>
+      <p id="gateNote">Gerbang ini cuma tampilan lokal — gak ada akun/server beneran.<br>Semua proses convert jalan 100% di browser lu.</p>
+    </div>
+  </div>
+
+  <!-- MAIN SCREEN -->
+  <div id="mainScreen">
+    <div class="dropzone" id="dropzone">
+      <h3>DROP FILE DI SINI</h3>
+      <p>atau tap buat pilih file — PNG, JPG, WEBP, GIF, BMP, SVG</p>
+      <input type="file" id="fileInput" accept="image/*,.svg">
+    </div>
+
+    <div id="workArea">
+      <div class="panel">
+        <h2>// FILE</h2>
+        <div class="preview-row">
+          <div class="preview-box"><img id="srcPreview" alt="preview"></div>
+          <div class="file-meta">
+            <div><b id="metaName">-</b></div>
+            <div>Format: <b id="metaFormat">-</b></div>
+            <div>Dimensi asli: <b id="metaDim">-</b></div>
+            <div>Ukuran: <b id="metaSize">-</b></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>// TARGET FORMAT</h2>
+        <div class="format-grid" id="formatGrid"></div>
+
+        <div class="quality-row" id="qualityRow">
+          <label>Quality <span id="qualityVal">90%</span></label>
+          <input type="range" id="qualitySlider" min="10" max="100" value="90">
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>// RESIZE</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Width (px)</label>
+            <input type="number" id="widthInput" min="1">
+          </div>
+          <div class="form-group">
+            <label>Height (px)</label>
+            <input type="number" id="heightInput" min="1">
+          </div>
+        </div>
+        <div class="lock-row">
+          <input type="checkbox" id="lockAspect" checked>
+          <label for="lockAspect">Kunci rasio aspek</label>
+        </div>
+        <button class="btn-convert" id="convertBtn">⚡ CONVERT</button>
+        <div id="progressWrap">
+          <div id="progressTrack"><div id="progressFill"></div></div>
+          <div id="progressLabel">PROCESSING...</div>
+        </div>
+      </div>
+
+      <div class="panel" id="resultPanel">
+        <h2>// HASIL</h2>
+        <img id="resultPreview" alt="result">
+        <div class="result-stats">
+          <div><b id="resultDim"></b></div>
+          <div>Ukuran baru: <b id="resultSize"></b></div>
+        </div>
+        <div class="result-actions">
+          <button class="btn-download" id="downloadBtn">DOWNLOAD</button>
+          <button class="btn-reset" id="resetBtn">CONVERT LAGI</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   NEBULA BACKGROUND (Three.js particle field)
+   ============================================================ */
+(function initNebula(){
+  const canvas = document.getElementById('nebula-canvas');
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const script = document.createElement('script');
+  script.src = "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js";
+  script.onload = () => {
+    const THREE = window.THREE;
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+    camera.position.z = 60;
+    const count = 1800;
+    const positions = new Float32Array(count*3);
+    const colors = new Float32Array(count*3);
+    const palette = [[0.486,0.231,0.929],[1,0.184,0.698],[0.133,0.827,0.933],[0.961,0.651,0.137]];
+    for(let i=0;i<count;i++){
+      positions[i*3] = (Math.random()-0.5)*200;
+      positions[i*3+1] = (Math.random()-0.5)*200;
+      positions[i*3+2] = (Math.random()-0.5)*200;
+      const c = palette[Math.floor(Math.random()*palette.length)];
+      colors[i*3]=c[0]; colors[i*3+1]=c[1]; colors[i*3+2]=c[2];
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
+    const mat = new THREE.PointsMaterial({ size:0.7, vertexColors:true, transparent:true, opacity:0.75 });
+    const points = new THREE.Points(geo, mat);
+    scene.add(points);
+    let mouseX=0, mouseY=0;
+    window.addEventListener('mousemove', e=>{
+      mouseX = (e.clientX/window.innerWidth - 0.5);
+      mouseY = (e.clientY/window.innerHeight - 0.5);
+    });
+    function animate(){
+      requestAnimationFrame(animate);
+      points.rotation.y += 0.0006;
+      points.rotation.x += 0.0002;
+      camera.position.x += (mouseX*8 - camera.position.x)*0.02;
+      camera.position.y += (-mouseY*8 - camera.position.y)*0.02;
+      camera.lookAt(scene.position);
+      renderer.render(scene, camera);
+    }
+    animate();
+    window.addEventListener('resize', ()=>{
+      camera.aspect = window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  };
+  document.head.appendChild(script);
+})();
+
+/* ============================================================
+   GATE LOGIC (cosmetic, local only)
+   ============================================================ */
+document.getElementById('gateEnter').addEventListener('click', ()=>{
+  document.getElementById('gateScreen').style.display = 'none';
+  document.getElementById('mainScreen').style.display = 'block';
+  document.getElementById('logoutBtn').style.display = 'inline-block';
+});
+document.getElementById('logoutBtn').addEventListener('click', ()=>{
+  location.reload();
+});
+
+/* ============================================================
+   FILE HANDLING + CONVERSION LOGIC
+   ============================================================ */
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const workArea = document.getElementById('workArea');
+
+let srcImage = null;      // HTMLImageElement of the loaded source
+let srcNaturalW = 0, srcNaturalH = 0;
+let srcFileName = '';
+let srcFileSize = 0;
+let srcExt = '';
+let aspectRatio = 1;
+
+const FORMAT_OPTIONS = [
+  { label: 'PNG', mime: 'image/png', ext: 'png' },
+  { label: 'JPG', mime: 'image/jpeg', ext: 'jpg' },
+  { label: 'WEBP', mime: 'image/webp', ext: 'webp' },
+];
+
+dropzone.addEventListener('click', ()=>fileInput.click());
+dropzone.addEventListener('dragover', e=>{ e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', ()=> dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', e=>{
+  e.preventDefault(); dropzone.classList.remove('dragover');
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e=>{
+  if(e.target.files.length) handleFile(e.target.files[0]);
+});
+
+function handleFile(file){
+  srcFileName = file.name;
+  srcFileSize = file.size;
+  srcExt = (file.name.split('.').pop() || '').toLowerCase();
+
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const dataUrl = ev.target.result;
+    const img = new Image();
+    img.onload = () => {
+      srcImage = img;
+      srcNaturalW = img.naturalWidth || img.width;
+      srcNaturalH = img.naturalHeight || img.height;
+      aspectRatio = srcNaturalW / srcNaturalH;
+      setupWorkArea(dataUrl);
+    };
+    img.onerror = () => alert('Gagal baca file ini. Coba file gambar lain.');
+    img.src = dataUrl;
+  };
+  reader.readAsDataURL(file);
+}
+
+function setupWorkArea(dataUrl){
+  document.getElementById('srcPreview').src = dataUrl;
+  document.getElementById('metaName').textContent = srcFileName;
+  document.getElementById('metaFormat').textContent = srcExt.toUpperCase();
+  document.getElementById('metaDim').textContent = `${srcNaturalW} × ${srcNaturalH}px`;
+  document.getElementById('metaSize').textContent = formatBytes(srcFileSize);
+
+  document.getElementById('widthInput').value = srcNaturalW;
+  document.getElementById('heightInput').value = srcNaturalH;
+
+  populateFormatOptions();
+  workArea.style.display = 'block';
+  document.getElementById('resultPanel').style.display = 'none';
+}
+
+let selectedMime = null;
+let selectedExt = null;
+
+function populateFormatOptions(){
+  const grid = document.getElementById('formatGrid');
+  grid.innerHTML = '';
+  selectedMime = null; selectedExt = null;
+
+  const available = FORMAT_OPTIONS.filter(f => f.ext !== srcExt);
+  available.forEach((f, i) => {
+    const card = document.createElement('div');
+    card.className = 'format-card';
+    card.dataset.mime = f.mime;
+    card.dataset.ext = f.ext;
+    card.innerHTML = `
+      <div class="fc-from">${srcExt.toUpperCase()}</div>
+      <div class="fc-arrow">↓</div>
+      <div class="fc-to">${f.label}</div>
+    `;
+    card.addEventListener('click', () => selectFormatCard(card));
+    grid.appendChild(card);
+    if(i === 0) selectFormatCard(card); // default select first option
+  });
+}
+
+function selectFormatCard(card){
+  document.querySelectorAll('.format-card').forEach(c=>c.classList.remove('active'));
+  card.classList.add('active');
+  selectedMime = card.dataset.mime;
+  selectedExt = card.dataset.ext;
+  toggleQualityRow();
+}
+
+function toggleQualityRow(){
+  document.getElementById('qualityRow').style.display =
+    (selectedMime === 'image/jpeg' || selectedMime === 'image/webp') ? 'block' : 'none';
+}
+
+document.getElementById('qualitySlider').addEventListener('input', (e)=>{
+  document.getElementById('qualityVal').textContent = e.target.value + '%';
+});
+
+/* Aspect ratio lock */
+const widthInput = document.getElementById('widthInput');
+const heightInput = document.getElementById('heightInput');
+widthInput.addEventListener('input', ()=>{
+  if(document.getElementById('lockAspect').checked && aspectRatio){
+    heightInput.value = Math.round(widthInput.value / aspectRatio);
+  }
+});
+heightInput.addEventListener('input', ()=>{
+  if(document.getElementById('lockAspect').checked && aspectRatio){
+    widthInput.value = Math.round(heightInput.value * aspectRatio);
+  }
+});
+
+/* Convert */
+document.getElementById('convertBtn').addEventListener('click', ()=>{
+  if(!srcImage) return;
+  if(!selectedMime){ alert('Pilih dulu format tujuan di atas.'); return; }
+  const mime = selectedMime;
+  const ext = selectedExt;
+  const quality = parseInt(document.getElementById('qualitySlider').value) / 100;
+  const w = parseInt(widthInput.value) || srcNaturalW;
+  const h = parseInt(heightInput.value) || srcNaturalH;
+
+  const progressWrap = document.getElementById('progressWrap');
+  const progressFill = document.getElementById('progressFill');
+  progressWrap.style.display = 'block';
+  progressFill.style.width = '0%';
+  document.getElementById('convertBtn').disabled = true;
+
+  let pct = 0;
+  const tick = setInterval(()=>{
+    pct = Math.min(pct + 18, 85);
+    progressFill.style.width = pct + '%';
+  }, 60);
+
+  setTimeout(()=>{
+    try{
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if(mime === 'image/jpeg'){
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0,0,w,h);
+      }
+      ctx.drawImage(srcImage, 0, 0, w, h);
+
+      canvas.toBlob((blob)=>{
+        clearInterval(tick);
+        progressFill.style.width = '100%';
+        setTimeout(()=>{
+          progressWrap.style.display = 'none';
+          document.getElementById('convertBtn').disabled = false;
+          showResult(blob, ext, w, h);
+        }, 250);
+      }, mime, quality);
+    } catch(err){
+      clearInterval(tick);
+      progressWrap.style.display = 'none';
+      document.getElementById('convertBtn').disabled = false;
+      alert('Gagal convert: ' + err.message);
+    }
+  }, 500);
+});
+
+let resultBlobUrl = null;
+let resultFileName = '';
+
+function showResult(blob, ext, w, h){
+  if(resultBlobUrl) URL.revokeObjectURL(resultBlobUrl);
+  resultBlobUrl = URL.createObjectURL(blob);
+  resultFileName = srcFileName.replace(/\.[^.]+$/, '') + '.' + ext;
+
+  document.getElementById('resultPreview').src = resultBlobUrl;
+  document.getElementById('resultDim').textContent = `${w} × ${h}px — ${ext.toUpperCase()}`;
+  document.getElementById('resultSize').textContent = formatBytes(blob.size);
+  document.getElementById('resultPanel').style.display = 'block';
+  document.getElementById('resultPanel').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+document.getElementById('downloadBtn').addEventListener('click', ()=>{
+  if(!resultBlobUrl) return;
+  const a = document.createElement('a');
+  a.href = resultBlobUrl;
+  a.download = resultFileName;
+  a.click();
+});
+
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  srcImage = null;
+  fileInput.value = '';
+  workArea.style.display = 'none';
+  document.getElementById('resultPanel').style.display = 'none';
+});
+
+function formatBytes(bytes){
+  if(bytes < 1024) return bytes + ' B';
+  if(bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/(1024*1024)).toFixed(2) + ' MB';
+}
+</script>
+</body>
+</html>
